@@ -1,0 +1,6 @@
+---
+  - hosts: application
+    remote_user: ubuntu
+    sudo: true
+    roles:
+      - application

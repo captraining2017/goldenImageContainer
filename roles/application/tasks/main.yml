@@ -1,0 +1,72 @@
+---
+- name: mysql directory master create if not exist
+  file: path="{{ item }}" mode=0777 state=directory recurse=yes
+  with_items: mysql_master_directory
+  when: mysql_master_directory is defined
+  register: mysql_directory_created
+
+- name: login to docker private registry
+  docker_login:
+    username: "{{docker_hub_user_name}}"
+    password: "{{docker_hub_password}}"
+    email: bharatparmar089@gmail.com
+
+- name: Create mysql mysql-master
+  docker:
+    name: mysql-master
+    hostname: mysql-master
+    image: "{{docker_hub_mysql_image}}"
+    state: reloaded
+    ports:
+      - "3306:3306"
+    env:
+        MYSQL_ROOT_PASSWORD="{{MYSQL_ROOT_PASSWORD}}",
+        MYSQL_INITDB_SKIP_TZINFO=1,
+        USER_NAME="{{USER_NAME}}",
+        USER_PASSWORD="{{USER_PASSWORD}}",
+        DATABASE_NAME="{{DATABASE_NAME}}",
+        ROLE="{{ROLE}}",
+        SERVER_ID="{{ SERVER_ID | int }}"
+    volumes: "{{ mysql_container_vol }}"
+- name: docker mysql-master internal ip address
+  command: docker inspect --format '{% raw %}{{ .NetworkSettings.IPAddress }}{% endraw %}' mysql-master
+  register: docker_mysql_master_ipaddress
+
+- name: wait for mysql master to up
+  wait_for: host={{ docker_mysql_master_ipaddress.stdout  }} port=3306 timeout=10800 delay=10 state=started
+  when: docker_mysql_master_ipaddress.stdout is defined
+
+- name: create django-server container
+  docker:
+    name: "{{backend_api_host_name}}"
+    hostname: "{{backend_api_host_name}}"
+    image: "{{docker_hub_django_image}}"
+    state: reloaded
+    ports:
+      - "8000:8000"
+    env:
+        s3_bucket="{{s3_bucket}}",
+        aws_access_key_id={{aws_access_key_id}},
+        aws_secret_access_key="{{aws_secret_access_key}}",
+        database_name="{{database_name}}",
+        database_user="{{database_user}}",
+        database_password="{{database_password}}",
+        database_host="{{database_host}}",
+        s3_host="{{s3_host}}"
+        "service_name"="{{service_name}}"
+    links: "{{link_container}}"
+  when: docker_mysql_master_ipaddress.stdout is defined
+
+- name: migrate database if it is exist
+  command: docker exec -d "{{backend_api_host_name}}" python manage.py migrate
+
+- name: create frontend-server container
+  docker:
+    name: "{{frontend_host_name}}"
+    hostname: "{{frontend_host_name}}"
+    image: "{{docker_hub_frontend_image}}"
+    state: reloaded
+    ports:
+      - "80:80"
+    env:
+        BACKENDSERVICE={{backend_service}}

@@ -1,0 +1,7 @@
+---
+  - hosts: docker
+    remote_user: ubuntu
+    sudo: true
+    tasks:
+      - name: testing
+        debug: msg={{hostvars[inventory_hostname]['inventory_hostname']}}

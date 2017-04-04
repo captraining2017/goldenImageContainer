@@ -1,0 +1,16 @@
+---  
+- name: start docker
+  service: name=docker state=started enabled=yes
+
+- name: check docker group exist
+  command: bash -c "cat /etc/group | grep -i docker | cut -d ":" -f 1"  
+  register: docker_group
+  
+- name: check user name for assign permisson for docker
+  command: bash -c "cat /etc/group | grep -i 1000 | cut -d ":" -f 1"
+  register: user
+  
+- name: adding docker group to user
+  user: name={{ user.stdout }} groups={{ docker_group.stdout }} append=yes
+  when: user.stdout and docker_group.stdout
+

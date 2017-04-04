@@ -1,0 +1,35 @@
+---
+- name: installing depended pkg for docker on ubuntu
+  apt: name={{ item }} state=present update_cache=yes
+  when: ansible_os_family == "Debian"
+  with_items:
+    - apt-transport-https
+    - ca-certificates
+    - python-dev
+    - python-pip
+
+- name: docker-require module is missing from remote system
+  pip:
+    name: docker-py
+    version: 1.7.0
+  ignore_errors: True
+  when: ansible_os_family == "Debian"
+
+- name: register apt-key for docker
+  apt_key: keyserver=hkp://p80.pool.sks-keyservers.net:80 id=58118E89F3A912897C070ADBF76221572C52609D
+  when: ansible_os_family == "Debian"
+
+- name: add docker repo to source list
+  apt_repository: repo="deb https://apt.dockerproject.org/repo ubuntu-{{ ansible_distribution_release }} main" state=present update_cache=yes
+  when: ansible_os_family == "Debian"
+  ignore_errors: yes
+
+- name: installing docker on ubuntu
+  apt: name=docker-engine state=present
+  when: '"generic" in ansible_kernel'
+  notify:
+    - start docker
+    - check docker group exist
+    - check user name for assign permisson for docker
+    - adding docker group to user
+  ignore_errors: yes

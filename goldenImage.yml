@@ -1,0 +1,42 @@
+---
+  - hosts: localhost
+    tasks:
+      - name: declare variable using secure way
+        include_vars: instance_host.yml
+
+      - name: create instance on  {{regionName}} region
+        ansible_aws:
+          regionName: "{{regionName}}"
+          imageId: "{{imageId}}"
+          instanceType: "{{instanceType}}"
+          securityGroupId: "{{securityGroupId}}"
+          keyName: "{{keyName}}"
+          rootSize: "{{rootSize}}"
+          AvailabilityZone: "{{AvailabilityZone}}"
+          SubnetId: "{{SubnetId}}"
+          aws_access_key_id: "{{aws_access_key_id}}"
+          aws_secret_access_key: "{{aws_secret_access_key}}"
+          tag: "{{tag}}"
+        register: instance
+
+      - name: add hosts
+        add_host:
+          name: "{{ instance['meta']['instance']['publicIpAddress'] }}"
+          groups: docker
+          user: ubuntu
+
+  - hosts: docker
+    remote_user: ubuntu
+    sudo: True
+    roles:
+      - { role: docker, when: ansible_os_family == "Debian" }
+
+  - hosts: localhost
+    tasks:
+      - name: add host_entry into group
+        inventory:
+          database: "{{database}}"
+          group: "{{item}}"
+          ipAddress: "{{ instance['meta']['instance']['publicIpAddress'] }}"
+        with_items: "{{group_list}}"
+        when: instance is defined
